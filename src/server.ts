@@ -6,6 +6,7 @@ import { accessLoggerMiddleware } from "$/middlewares/accessLogger.middleware.js
 
 import RootRouter from "./routes/routes.js";
 import { createServer } from "node:http";
+import productRoutes from "$/routes/product.routes.js";
 
 import { errorHandler, notFoundMiddleware } from "./middlewares/error.middleware.js";
 import initializeServer from "$/config/server.config.js";
@@ -53,3 +54,5 @@ app.use("/api", RootRouter);
 app.use(notFoundMiddleware);
 
 app.use(errorHandler);
+
+app.use("/api/products", productRoutes);
