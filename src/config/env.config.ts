@@ -16,8 +16,8 @@ const envConfig = {
   NODE_ENV: process.env.NODE_ENV,
   IS_PROD: process.env.NODE_ENV !== "dev",
 
-  NODE_MAILER_EMAIL: process.env.NODEMAILER_EMAIL || "",
-  NODE_MAILER_PASS: process.env.NODEMAILER_PASS || "",
+  NODE_MAILER_EMAIL: process.env.NODE_MAILER_EMAIL || "",
+  NODE_MAILER_PASS: process.env.NODE_MAILER_PASS || "",
   SMTP_HOST: process.env.SMTP_HOST || "",
   SMTP_PORT: Number.parseInt(process.env.SMTP_PORT || "465", 10),
 

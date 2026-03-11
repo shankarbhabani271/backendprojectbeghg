@@ -1,46 +1,30 @@
-import { UserModel } from "$/models/User.model.js";
-import authService from "$/services/auth.service.js";
-import { NextFunction, Request, Response } from "express";
+import envConfig from "$/config/env.config.js"
+import jwt from "jsonwebtoken"
 
+export const authMiddleware = (req,res,next)=>{
 
-const authenticate = (roles: string[] = []) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const token = req.headers.authorization?.split(" ")[1];
-      if (!token) {
-        // return res.badRequest("Token not found");
-        res.badRequest({
-          message: "Token not found",
-          statusCode: 400,
-        })
-        return
-      }
+const token = req.cookies.token
 
-      const decoded = authService.verifyToken(token);
+if(!token){
+return res.status(401).json({
+message:"Unauthorized"
+})
+}
 
-      const user = await UserModel.findById(decoded.data).lean();
-      if (!user) {
-        // return res.badRequest("User not found");
-        res.badRequest({
-          message: "User not found",
-          statusCode: 400,
-        })
-        return
-      }
-      if (roles.length && !roles.includes(user.userType.toString())) {
-        res.badRequest({
-          message: "You do not have permission to access this resource",
-          statusCode: 400,
-        })
-        return
-      }
+try{
 
-      req.user = user;
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
-};
+const decoded = jwt.verify(token,envConfig.JWT_SECRET)
 
-export default authenticate;
+req.user = decoded
+
+next()
+
+}catch(error){
+
+res.status(401).json({
+message:"Invalid token"
+})
+
+}
+
+}
