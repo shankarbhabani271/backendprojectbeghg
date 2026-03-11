@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { accessLoggerMiddleware } from "$/middlewares/accessLogger.middleware.js";
 
-import RootRouter from "./routes/routes.js";
+// import RootRouter from "./routes/Routes";
 import { createServer } from "node:http";
 
 import { errorHandler, notFoundMiddleware } from "./middlewares/error.middleware.js";
@@ -13,6 +13,7 @@ import { requestContextMiddleware } from "$/middlewares/requestContext.middlewar
 import responseHandler from "$/middlewares/response.middleware.js";
 import { applyCores } from "$/config/cors.config.js";
 import connectDB from "./config/db.config.js";
+import RootRouter from "$/routes/Root.router.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
