@@ -1,13 +1,16 @@
-import { Express } from "express";
+import { Router } from "express";
 import { createCategory, getAllCategory, getSinglecategory, updateCategory, deleteCategory } from "$/controller/category.controller.js";
+import { validateRequest } from "$/middlewares/validate.middleware.js";
+import { createCategorySchema } from "$/validations/category.validation.js";
 
 
 
-const category = (app: Express) => {
-  app.post("/categories", createCategory);
-  app.get("/categories", getAllCategory);
-  app.get("/categories/:id", getSinglecategory);
-  app.put("/categories/:id", updateCategory);
-  app.delete("/categories/:id", deleteCategory);
-};
-export default category;
+const categoryRoutes = Router();
+
+categoryRoutes.post("/categories", validateRequest(createCategorySchema), createCategory);
+categoryRoutes.get("/categories", getAllCategory);
+categoryRoutes.get("/categories/:id", getSinglecategory);
+categoryRoutes.put("/categories/:id", updateCategory);
+categoryRoutes.delete("/categories/:id", deleteCategory);
+
+export default categoryRoutes;

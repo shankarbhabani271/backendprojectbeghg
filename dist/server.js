@@ -1,21 +1,20 @@
 import cookieParser from 'cookie-parser';
-import express2, { Router } from 'express';
+import express, { Router } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import morgan from 'morgan';
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import fs from 'fs';
-import { z, ZodError } from 'zod';
-import bcrypt from 'bcryptjs';
-import mongoose2, { Schema } from 'mongoose';
-import dotenv from 'dotenv';
-import jwt from 'jsonwebtoken';
-import 'crypto';
 import { createServer } from 'http';
+import mongoose2, { Schema } from 'mongoose';
+import { z, ZodError } from 'zod';
+import dotenv from 'dotenv';
 import os from 'os';
 import { v4 } from 'uuid';
 import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import nodemailer from 'nodemailer';
 
 // src/server.ts
 var LOG_DIR = path.resolve(process.cwd(), "logs");
@@ -82,6 +81,287 @@ var accessLoggerMiddleware = morgan(
     }
   }
 );
+var productSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    description: {
+      type: String,
+      trim: true
+    },
+    brand: {
+      type: String,
+      trim: true
+    },
+    // category: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "Category",
+    //   required: true
+    // },
+    // image:
+    // {
+    //   url: String,
+    //   publicId: String,
+    // },
+    isActive: {
+      type: Boolean,
+      default: true
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+var ProductModel = mongoose2.model("Product", productSchema);
+var variantSchema = new mongoose2.Schema(
+  {
+    product: {
+      type: mongoose2.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true
+    },
+    attributes: {
+      type: mongoose2.Schema.Types.Mixed,
+      default: {}
+    },
+    attributesKey: {
+      type: String,
+      required: true
+    },
+    sku: {
+      type: String,
+      required: true,
+      unique: true
+    },
+    price: {
+      salePrice: {
+        type: Number,
+        required: true
+      },
+      mrp: {
+        type: Number,
+        required: true
+      }
+    }
+  },
+  { timestamps: true }
+);
+var VariantModel = mongoose2.model("Variant", variantSchema);
+
+// src/controller/product.controller.ts
+var createProduct = async (req, res, next) => {
+  try {
+    const {
+      variants,
+      prodDetails
+    } = req.body;
+    const product = await ProductModel.create({ ...prodDetails });
+    const rex = variants.map((item) => {
+      const sku = `${prodDetails.name.substring(0, 3).toUpperCase()}-${Math.floor(Math.random() * 1e4)}`;
+      return {
+        ...item,
+        sku
+      };
+    });
+    rex.forEach(async (variant) => {
+      await VariantModel.create({
+        ...variant,
+        product: product._id
+      });
+    });
+    res.success({
+      message: "Product created successfully",
+      data: product
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+var getAllProducts = async (_req, res) => {
+  try {
+    const products = await ProductModel.find();
+    const PopulatedProd = await Promise.all(
+      products.map(async (product) => {
+        const variants = await VariantModel.find({ product: product._id });
+        return {
+          product,
+          variants
+        };
+      })
+    );
+    res.success({
+      message: "Products retrieved successfully",
+      data: PopulatedProd
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var getSingleProduct = async (req, res) => {
+  try {
+    const product = await ProductModel.findById(req.params.id).populate("category").populate("variants");
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      message: "Product retrieved successfully",
+      data: product
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var updateProduct = async (req, res) => {
+  try {
+    const product = await ProductModel.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+    if (req.body.variants) {
+      await VariantModel.updateMany(
+        { product: req.params.id },
+        { $set: req.body.variants }
+      );
+    }
+    return res.status(200).json({
+      success: true,
+      message: "Product updated successfully",
+      data: product
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var deleteProduct = async (req, res) => {
+  try {
+    const product = await ProductModel.findByIdAndDelete(req.params.id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+    if (req.params.id) {
+      await VariantModel.deleteMany({ product: req.params.id });
+    }
+    return res.status(200).json({
+      success: true,
+      message: "Product deleted successfully"
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// src/middlewares/validate.middleware.ts
+var validateRequest = (schemas) => {
+  return async (req, _res, next) => {
+    try {
+      if (schemas.body) {
+        await schemas.body.parseAsync(req.body);
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+
+// src/middlewares/createzodschema.ts
+var CreateZodSchema = ({
+  body,
+  params,
+  query
+}) => {
+  return {
+    body,
+    params,
+    query
+  };
+};
+
+// src/validations/product.validation.ts
+var createProductSchema = CreateZodSchema(
+  {
+    body: z.object({
+      prodDetails: z.object({
+        name: z.string({ message: "Name is required" }).min(3, "Name must be at least 3 characters long").nonempty("Name is required"),
+        description: z.string({ message: "Description is required" }).min(30, "Description must be at least 30 characters long").nonempty("Description is required"),
+        brand: z.string({ message: "Brand is required" }).min(3, "Brand must be at least 3 characters long").nonempty("Brand is required"),
+        category: z.string({ message: "Category is required" }).nonempty("Category is required")
+      }),
+      variants: z.array(
+        z.object({
+          attribute: z.string({ message: "Attribute is required" }).nonempty("Attribute is required"),
+          attributeKey: z.string({ message: "Attribute Key is required" }).nonempty("Attribute Key is required"),
+          price: z.object({
+            salePrice: z.number({ message: "Sale Price is required" }).positive("Sale Price must be a positive number"),
+            mrp: z.number({ message: "MRP is required" }).positive("MRP must be a positive number")
+          })
+        })
+      )
+    })
+  }
+);
+
+// src/routes/product.routes.ts
+var productRoutes = Router();
+productRoutes.post("/", validateRequest(createProductSchema), createProduct);
+productRoutes.get("/", getAllProducts);
+productRoutes.get("/:id", getSingleProduct);
+productRoutes.put("/:id", updateProduct);
+productRoutes.delete("/:id", deleteProduct);
+var product_routes_default = productRoutes;
+dotenv.config();
+var envConfig = {
+  DB_URI: process.env.DB_URI || "",
+  PORT: process.env.PORT || 4500,
+  JWT_SECRET: process.env.JWT_SECRET,
+  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
+  SUPER_ADMIN_EMAIL: process.env.SUPER_ADMIN_EMAIL,
+  SUPER_ADMIN_PASSWORD: process.env.SUPER_ADMIN_PASSWORD,
+  SUPER_ADMIN_PHONE: process.env.SUPER_ADMIN_PHONE,
+  RAZOR_KEY_ID: process.env.RAZOR_KEY_ID,
+  RAZOR_KEY_SECRET: process.env.RAZOR_KEY_SECRET,
+  RAZOR_WEBHOOK_SECRET: process.env.RAZOR_WEBHOOK_SECRET,
+  NODE_ENV: process.env.NODE_ENV,
+  IS_PROD: process.env.NODE_ENV !== "dev",
+  NODE_MAILER_EMAIL: process.env.NODE_MAILER_EMAIL || "",
+  NODE_MAILER_PASS: process.env.NODE_MAILER_PASS || "",
+  SMTP_HOST: process.env.SMTP_HOST || "",
+  SMTP_PORT: Number.parseInt(process.env.SMTP_PORT || "465", 10),
+  // AWS
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || "",
+  AWS_REGION: process.env.AWS_REGION,
+  AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+  FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:3000",
+  LOG_FILE_VALIDITY: process.env.LOG_FILE_VALIDITY || "1d",
+  ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || ""
+};
+var env_config_default = envConfig;
 
 // src/types/error.ts
 var ERROR_TYPES = {
@@ -196,196 +476,6 @@ var ValidationError = class extends AppError {
     };
   }
 };
-var validateRequest = (schemas) => {
-  return async (req, _res, next) => {
-    try {
-      if (schemas.body) {
-        await schemas.body.parseAsync(req.body);
-      }
-      next();
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const validationMessages = error.issues.map((issue) => issue.message);
-        next(new ValidationError(validationMessages));
-      } else {
-        next(error);
-      }
-    }
-  };
-};
-var signUpSchema = {
-  body: z.object({
-    name: z.string({ message: "Name is required" }).min(3, "Name must be at least 3 characters long").nonempty("Name is required"),
-    password: z.string({ message: "Password is required" }).min(8, "Password must be at least 8 characters long.").refine((password) => /[A-Z]/.test(password), {
-      message: "Password must contain at least one uppercase letter."
-    }).refine((password) => /[a-z]/.test(password), {
-      message: "Password must contain at least one lowercase letter."
-    }).refine((password) => /\d/.test(password), {
-      message: "Password must contain at least one number."
-    }),
-    email: z.string({ message: "Email is required" }).email({ message: "Invalid email format" }),
-    phone: z.number({ message: "Phone number is required" }).min(10, "Phone number must be at least 10 digits long"),
-    userType: z.enum(["ADMIN", "SUPER_ADMIN"], {
-      message: "userType must be ADMIN or SUPER_ADMIN"
-    })
-  })
-};
-var signInSchema = {
-  body: z.object({
-    email: z.string({ message: "Email is required" }).email(),
-    password: z.string({ message: "Password is required" }).min(8, "Password must be at least 8 characters long.").refine((password) => /[A-Z]/.test(password), {
-      message: "Password must contain at least one uppercase letter."
-    }).refine((password) => /[a-z]/.test(password), {
-      message: "Password must contain at least one lowercase letter."
-    }).refine((password) => /\d/.test(password), {
-      message: "Password must contain at least one number."
-    })
-  })
-};
-var userSchema = new Schema(
-  {
-    name: {
-      type: String
-    },
-    phone: {
-      type: String,
-      unique: true,
-      required: true
-    },
-    email: {
-      type: String,
-      unique: true,
-      required: true
-    },
-    password: {
-      type: String,
-      required: true
-    },
-    userType: {
-      type: String
-    },
-    token: {
-      type: String
-    },
-    profilePhoto: {
-      url: String
-    }
-  },
-  {
-    timestamps: true
-  }
-);
-var UserModel = mongoose2.model("User", userSchema);
-dotenv.config();
-var envConfig = {
-  DB_URI: process.env.DB_URI || "",
-  PORT: process.env.PORT || 4500,
-  JWT_SECRET: process.env.JWT_SECRET,
-  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
-  SUPER_ADMIN_EMAIL: process.env.SUPER_ADMIN_EMAIL,
-  SUPER_ADMIN_PASSWORD: process.env.SUPER_ADMIN_PASSWORD,
-  SUPER_ADMIN_PHONE: process.env.SUPER_ADMIN_PHONE,
-  RAZOR_KEY_ID: process.env.RAZOR_KEY_ID,
-  RAZOR_KEY_SECRET: process.env.RAZOR_KEY_SECRET,
-  RAZOR_WEBHOOK_SECRET: process.env.RAZOR_WEBHOOK_SECRET,
-  NODE_ENV: process.env.NODE_ENV,
-  IS_PROD: process.env.NODE_ENV !== "dev",
-  NODE_MAILER_EMAIL: process.env.NODEMAILER_EMAIL || "",
-  NODE_MAILER_PASS: process.env.NODEMAILER_PASS || "",
-  SMTP_HOST: process.env.SMTP_HOST || "",
-  SMTP_PORT: Number.parseInt(process.env.SMTP_PORT || "465", 10),
-  // AWS
-  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || "",
-  AWS_REGION: process.env.AWS_REGION,
-  AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
-  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
-  FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:3000",
-  LOG_FILE_VALIDITY: process.env.LOG_FILE_VALIDITY || "1d",
-  ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || ""
-};
-var env_config_default = envConfig;
-var ACCESS_TOKEN_TTL = "1d";
-var generateAccessToken = (userId) => {
-  return jwt.sign({ sub: userId }, env_config_default.JWT_SECRET, {
-    expiresIn: ACCESS_TOKEN_TTL
-  });
-};
-
-// src/controller/Auth.controller.ts
-var signUpController = async (req, res, next) => {
-  try {
-    const { name, phone, email, password, userType, adminType, otp } = req.body;
-    if (!otp) {
-      res.status(400).json({ message: "OTP is required" });
-      return;
-    }
-    if (!/^\d{6}$/.test(otp)) {
-      res.status(400).json({ message: "OTP must be a 6-digit number" });
-      return;
-    }
-    const existingUser = await UserModel.findOne({ email, userType }).lean();
-    if (existingUser) {
-      res.status(400).json({ message: "User already exists" });
-      return;
-    }
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await UserModel.create({
-      name,
-      phone,
-      email,
-      password: hashedPassword,
-      userType,
-      adminType
-    });
-    const { password: _, ...userWithoutPassword } = newUser.toObject();
-    res.created({
-      data: userWithoutPassword,
-      message: "User Created Successfully"
-    });
-    return;
-  } catch (error) {
-    next(error);
-  }
-};
-var signInController = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
-    const user = await UserModel.findOne({ email });
-    if (!user) {
-      res.status(400).json({ message: "User not found" });
-      return;
-    }
-    const isPasswordValid = bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      res.status(400).json({ message: "Invalid password" });
-      return;
-    }
-    const userObj = user.toObject();
-    const { password: _, ...userWithoutPassword } = userObj;
-    const token = generateAccessToken(user._id.toString());
-    res.success({
-      data: {
-        token,
-        user: userWithoutPassword
-      },
-      message: "User Logged In Successfully"
-    });
-    return;
-  } catch (error) {
-    next(error);
-  }
-};
-
-// src/routes/auth.routes.ts
-var authRouter = Router();
-authRouter.post("/signUp", validateRequest(signUpSchema), signUpController);
-authRouter.post("/signIn", validateRequest(signInSchema), signInController);
-var auth_routes_default = authRouter;
-
-// src/routes/routes.ts
-var RootRouter = express2.Router();
-RootRouter.use("/auth", auth_routes_default);
-var routes_default = RootRouter;
 var notFoundMiddleware = (req, res) => {
   logger.warn({
     event: "route_not_found",
@@ -573,22 +663,212 @@ var connectDB = async () => {
       console.info("Reconnected to MongoDB");
     });
   } catch (error) {
-    console.error("MongoDB connection error:", error);
+    console.error("MongoDB connection error:", error.message);
+    console.log(env_config_default.DB_URI, "iiiii");
     process.exit(1);
   }
 };
 var db_config_default = connectDB;
+var userSchema = new mongoose2.Schema(
+  {
+    email: {
+      type: String,
+      required: true,
+      unique: true
+    },
+    password: {
+      type: String,
+      required: true,
+      select: false
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+var UserModel = mongoose2.model("User", userSchema);
+var userModel_default = UserModel;
+var otpSchema = new mongoose2.Schema({
+  email: {
+    type: String,
+    required: true
+  },
+  otp: {
+    type: String,
+    required: true
+  },
+  expiresAt: {
+    type: Date,
+    required: true
+  }
+});
+var otpModel_default = mongoose2.model("OTP", otpSchema);
+var registerUser = async (req, res, next) => {
+  try {
+    const { email, password, otp } = req.body;
+    const otpData = await otpModel_default.findOne({ email, otp });
+    if (!otpData) {
+      res.status(400).json({
+        message: "Invalid OTP"
+      });
+      return;
+    }
+    if (otpData.expiresAt < /* @__PURE__ */ new Date()) {
+      res.status(400).json({
+        message: "OTP expired"
+      });
+      return;
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await userModel_default.create({
+      email,
+      password: hashedPassword
+    });
+    await otpModel_default.deleteMany({ email });
+    res.status(201).json({
+      message: "User registered successfully",
+      user
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: err.message
+    });
+  }
+};
+var loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await userModel_default.findOne({ email });
+    if (!user) {
+      res.status(400).json({
+        message: "User not found"
+      });
+      return;
+    }
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      res.status(400).json({
+        message: "Invalid password"
+      });
+      return;
+    }
+    res.status(200).json({
+      message: "Login successful",
+      user
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: err.message
+    });
+  }
+};
+var logoutUser = async (req, res) => {
+  res.status(200).json({
+    message: "Logout successful"
+  });
+};
+var signUpSchema = {
+  body: z.object({
+    name: z.string({ message: "Name is required" }).min(3, "Name must be at least 3 characters long").nonempty("Name is required"),
+    password: z.string({ message: "Password is required" }).min(8, "Password must be at least 8 characters long.").refine((password) => /[A-Z]/.test(password), {
+      message: "Password must contain at least one uppercase letter."
+    }).refine((password) => /[a-z]/.test(password), {
+      message: "Password must contain at least one lowercase letter."
+    }).refine((password) => /\d/.test(password), {
+      message: "Password must contain at least one number."
+    }),
+    email: z.string({ message: "Email is required" }).email({ message: "Invalid email format" }),
+    phone: z.number({ message: "Phone number is required" }).min(10, "Phone number must be at least 10 digits long"),
+    userType: z.enum(["ADMIN", "SUPER_ADMIN"], {
+      message: "userType must be ADMIN or SUPER_ADMIN"
+    })
+  })
+};
+({
+  body: z.object({
+    email: z.string({ message: "Email is required" }).email(),
+    password: z.string({ message: "Password is required" }).min(8, "Password must be at least 8 characters long.").refine((password) => /[A-Z]/.test(password), {
+      message: "Password must contain at least one uppercase letter."
+    }).refine((password) => /[a-z]/.test(password), {
+      message: "Password must contain at least one lowercase letter."
+    }).refine((password) => /\d/.test(password), {
+      message: "Password must contain at least one number."
+    })
+  })
+});
+console.log("EMAIL:", env_config_default.NODE_MAILER_EMAIL);
+console.log("PASS:", env_config_default.NODE_MAILER_PASS);
+var transporter = nodemailer.createTransport({
+  host: env_config_default.SMTP_HOST,
+  service: "gmail",
+  port: 465,
+  secure: true,
+  auth: {
+    user: env_config_default.NODE_MAILER_EMAIL,
+    pass: env_config_default.NODE_MAILER_PASS
+  },
+  logger: false
+});
+transporter.verify((error, success) => {
+  if (success) {
+    console.info("Nodemailer is ready to send emails");
+  }
+  if (error) {
+    console.error("Nodemailer configuration error:", error);
+  } else {
+    console.info("Nodemailer is ready to send emails");
+  }
+});
+var email_config_default = transporter;
+
+// src/controller/otp.controller.ts
+var sendOtp = async (req, res, next) => {
+  try {
+    console.log("object", "+++++++++");
+    const { email } = req.body;
+    const otp = Math.floor(1e5 + Math.random() * 9e5).toString();
+    await otpModel_default.create({
+      email,
+      otp,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1e3)
+    });
+    email_config_default.sendMail({
+      from: env_config_default.NODE_MAILER_EMAIL,
+      to: email,
+      subject: "Your OTP Code",
+      text: `Your OTP code is ${otp}. It will expire in 5 minutes.`
+    });
+    res.success({
+      message: "OTP sent successfully",
+      data: { otp }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// src/routes/User.route.ts
+var userouter = Router();
+userouter.post("/register", validateRequest(signUpSchema), registerUser);
+userouter.post("/send-otp", sendOtp);
+userouter.post("/login", loginUser);
+userouter.post("/logout", logoutUser);
+var User_route_default = userouter;
+var RootRouter = Router();
+RootRouter.use("/auth", User_route_default);
+RootRouter.use("/product", product_routes_default);
+var routes_default = RootRouter;
 
 // src/server.ts
 var __filename$1 = fileURLToPath(import.meta.url);
 var __dirname$1 = path.dirname(__filename$1);
-var app = express2();
+var app = express();
 var publicDir = path.join(__dirname$1, "..", "public");
-app.use(express2.static(publicDir));
+app.use(express.static(publicDir));
 var server = createServer(app);
 app.use(response_middleware_default);
-app.use(express2.json());
-app.use(express2.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 applyCores({ app });
 var initialize = () => {
@@ -603,6 +883,7 @@ app.set("trust proxy", true);
 app.use(requestContextMiddleware);
 app.use(accessLoggerMiddleware);
 app.use("/api", routes_default);
+app.use("/api/products", product_routes_default);
 app.use(notFoundMiddleware);
 app.use(errorHandler);
 

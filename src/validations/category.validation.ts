@@ -1,6 +1,8 @@
+import { CreateZodSchema } from "$/middlewares/createzodschema.js";
 import { z } from "zod";
 
-export const createCategorySchema = {
+export const createCategorySchema = CreateZodSchema(
+    {
     body: z.object({
         name: z
             .string({ message: "Name is required" })
@@ -11,4 +13,4 @@ export const createCategorySchema = {
             .min(30, "Description must be at least 30 characters long")
             .nonempty("Description is required"),
     })
-};
+});

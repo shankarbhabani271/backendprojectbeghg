@@ -1,13 +1,19 @@
-import { Express } from "express";
+import { Router } from "express";
 import { createProduct, getAllProducts, getSingleProduct, updateProduct, deleteProduct } from "$/controller/product.controller.js";
+import { validateRequest } from "$/middlewares/validate.middleware.js";
+import { createProductSchema } from "$/validations/product.validation.js";
 
 
-const product = (app: Express) => {
-  app.post("/products", createProduct);
-  app.get("/products", getAllProducts);
-  app.get("/products/:id", getSingleProduct);
-  app.put("/products/:id", updateProduct);
-  app.delete("/products/:id", deleteProduct);
-};
-export default product;
+
+const productRoutes = Router();
+
+productRoutes.post("/", validateRequest(createProductSchema), createProduct);
+productRoutes.get("/", getAllProducts);
+productRoutes.get("/:id", getSingleProduct);
+productRoutes.put("/:id", updateProduct);
+productRoutes.delete("/:id", deleteProduct);
+
+
+
+export default productRoutes;
 

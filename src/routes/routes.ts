@@ -1,8 +1,8 @@
-import express from "express";
+import productRoutes from "$/routes/product.routes.js";
+import userouter from "$/routes/User.route.js";
+import {Router} from "express"
+const RootRouter = Router();
 
-import authRouter from "./auth.routes.js";
-const RootRouter = express.Router();
-
-RootRouter.use("/auth", authRouter);
-
-export default RootRouter;
+RootRouter.use("/auth",userouter)
+RootRouter.use("/product", productRoutes)
+export default  RootRouter

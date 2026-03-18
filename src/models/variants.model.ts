@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { HydratedDocument, InferSchemaType, Schema } from "mongoose";
 
 const variantSchema = new mongoose.Schema(
   {
@@ -39,3 +39,11 @@ const variantSchema = new mongoose.Schema(
 );
 
 export const VariantModel = mongoose.model("Variant", variantSchema);
+
+export type TVariant = InferSchemaType<typeof variantSchema> & {
+  _id: Schema.Types.ObjectId;
+}
+
+
+export type CreateVariantInput = Omit<TVariant, "_id">;
+export type VariantDocument = HydratedDocument<TVariant>;

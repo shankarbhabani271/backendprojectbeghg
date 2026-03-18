@@ -1,6 +1,9 @@
 import nodemailer from "nodemailer";
 import envConfig from "./env.config.js";
 
+console.log("EMAIL:", envConfig.NODE_MAILER_EMAIL);
+console.log("PASS:", envConfig.NODE_MAILER_PASS);
+
 const transporter = nodemailer.createTransport({
   host: envConfig.SMTP_HOST,
   service: "gmail",
@@ -18,6 +21,7 @@ transporter.verify((error, success) => {
   }
   if (error) {
     console.error("Nodemailer configuration error:", error);
+    
   } else {
     console.info("Nodemailer is ready to send emails");
   }

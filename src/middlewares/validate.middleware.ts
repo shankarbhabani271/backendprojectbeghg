@@ -1,6 +1,5 @@
-import { ValidationError } from "$/utils/appError.js";
 import { NextFunction, Request, Response } from "express";
-import { ZodError, ZodSchema } from "zod";
+import {  ZodSchema } from "zod";
 
 
 // Refactored validateRequest function
@@ -31,12 +30,7 @@ export const validateRequest = (schemas: {
 
       next();
     } catch (error) {
-      if (error instanceof ZodError) {
-        const validationMessages = error.issues.map((issue) => issue.message);
-        next(new ValidationError(validationMessages));
-      } else {
-        next(error);
-      }
+      next(error);
     }
   };
 };

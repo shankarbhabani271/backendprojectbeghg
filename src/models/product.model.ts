@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { HydratedDocument, InferSchemaType, Schema } from "mongoose";
 
 const productSchema = new Schema(
   {
@@ -17,11 +17,11 @@ const productSchema = new Schema(
       type: String,
       trim: true,
     },
-    category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-      required: true
-    },
+    // category: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "Category",
+    //   required: true
+    // },
     // image:
     // {
     //   url: String,
@@ -39,3 +39,11 @@ const productSchema = new Schema(
 );
 
 export const ProductModel = mongoose.model("Product", productSchema);
+
+export type TProduct = InferSchemaType<typeof productSchema> & {
+  _id: Schema.Types.ObjectId;
+}
+
+
+export type CreateProductInput = Omit<TProduct, "_id">;
+export type ProductDocument = HydratedDocument<TProduct>;
