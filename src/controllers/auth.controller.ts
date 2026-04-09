@@ -138,7 +138,7 @@ export const signInController = async (
 
     const user = await UserModel.findOne({ email });
 
-    console.log(user,email,"++++++++++")
+    // console.log(user,email,"++++++++++",user?.email)
     if (!user) {
       res.badRequest({ message: "Invalid credentials email not found" });
       return;
@@ -452,7 +452,7 @@ export const logoutController = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const token = req.cookies?.refreshToken;
+    const token = req.cookies?.RefreshToken;
 
     if (token) {
       await UserModel.updateOne(

@@ -1,27 +1,21 @@
 import cookieParser from 'cookie-parser';
-import express, { Router } from 'express';
+import express2, { Router } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import morgan from 'morgan';
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import fs from 'fs';
+import mongoose3, { Schema } from 'mongoose';
 import { createServer } from 'http';
-import mongoose2, { Schema } from 'mongoose';
 import { z, ZodError } from 'zod';
 import dotenv from 'dotenv';
 import os from 'os';
 import { v4 } from 'uuid';
 import cors from 'cors';
-<<<<<<< HEAD
-import mongoose, { Schema } from 'mongoose';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-=======
-import bcrypt from 'bcryptjs';
-import nodemailer from 'nodemailer';
->>>>>>> 453003f225b70a968af64ea89b0b30435b4a4945
 
 // src/server.ts
 var LOG_DIR = path.resolve(process.cwd(), "logs");
@@ -88,6 +82,72 @@ var accessLoggerMiddleware = morgan(
     }
   }
 );
+var userDetailsSchema = new mongoose3.Schema(
+  {
+    name: {
+      type: String,
+      // fixed typo (tyep → type)
+      required: true
+    },
+    phone: {
+      type: String,
+      unique: true,
+      required: true
+    },
+    email: {
+      type: String,
+      unique: true,
+      required: true
+    },
+    company: {
+      type: String
+    },
+    description: {
+      type: String
+    }
+  },
+  { timestamps: true }
+  // moved outside properly
+);
+var userdetails_model_default = mongoose3.model("UserDetails", userDetailsSchema);
+
+// src/controllers/userdetails.controller.ts
+var createUserDetails = async (req, res) => {
+  try {
+    const user = new userdetails_model_default(req.body);
+    await user.save();
+    res.status(201).json({
+      message: "Saved successfully"
+    });
+  } catch (error) {
+    console.log(error);
+    if (error.code === 11e3) {
+      return res.status(400).json({
+        message: "Email or phone already exists"
+      });
+    }
+    res.status(500).json({
+      message: "Error saving user details"
+    });
+  }
+};
+var getUserDetails = async (req, res) => {
+  try {
+    const users = await userdetails_model_default.find().sort({ createdAt: -1 });
+    res.status(200).json(users);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      message: "Error fetching users"
+    });
+  }
+};
+
+// src/routes/userdetails.routes.ts
+var router = express2.Router();
+router.post("/userdetails", createUserDetails);
+router.get("/userdetails", getUserDetails);
+var userdetails_routes_default = router;
 var productSchema = new Schema(
   {
     name: {
@@ -122,16 +182,16 @@ var productSchema = new Schema(
     timestamps: true
   }
 );
-var ProductModel = mongoose2.model("Product", productSchema);
-var variantSchema = new mongoose2.Schema(
+var ProductModel = mongoose3.model("Product", productSchema);
+var variantSchema = new mongoose3.Schema(
   {
     product: {
-      type: mongoose2.Schema.Types.ObjectId,
+      type: mongoose3.Schema.Types.ObjectId,
       ref: "Product",
       required: true
     },
     attributes: {
-      type: mongoose2.Schema.Types.Mixed,
+      type: mongoose3.Schema.Types.Mixed,
       default: {}
     },
     attributesKey: {
@@ -156,7 +216,7 @@ var variantSchema = new mongoose2.Schema(
   },
   { timestamps: true }
 );
-var VariantModel = mongoose2.model("Variant", variantSchema);
+var VariantModel = mongoose3.model("Variant", variantSchema);
 
 // src/controller/product.controller.ts
 var createProduct = async (req, res, next) => {
@@ -658,19 +718,19 @@ var applyCores = ({ app: app2 }) => {
   app2.options(/.*/, cors());
 };
 var connectDB = async () => {
-  if (mongoose2.connection.readyState === 1) {
+  if (mongoose3.connection.readyState === 1) {
     console.info("MongoDB is already connected.");
     return;
   }
   try {
-    await mongoose2.connect(env_config_default.DB_URI);
+    await mongoose3.connect(env_config_default.DB_URI);
     console.log("Connected to MongoDB");
     console.info("Connected to MongoDB");
-    mongoose2.connection.on("disconnected", () => {
+    mongoose3.connection.on("disconnected", () => {
       console.log("Lost MongoDB connection");
       console.warn("Lost MongoDB connection");
     });
-    mongoose2.connection.on("reconnected", () => {
+    mongoose3.connection.on("reconnected", () => {
       console.log("Reconnected to MongoDB");
       console.info("Reconnected to MongoDB");
     });
@@ -681,7 +741,6 @@ var connectDB = async () => {
   }
 };
 var db_config_default = connectDB;
-<<<<<<< HEAD
 
 // src/constants/user.constant.ts
 var USER_STATUS = /* @__PURE__ */ ((USER_STATUS2) => {
@@ -719,9 +778,6 @@ var verifyToken = ({
   }
 };
 var refreshTokenSchema = new Schema(
-=======
-var userSchema = new mongoose2.Schema(
->>>>>>> 453003f225b70a968af64ea89b0b30435b4a4945
   {
     tokenHash: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
@@ -762,8 +818,7 @@ var userSchema = new Schema(
   },
   { timestamps: true }
 );
-<<<<<<< HEAD
-var UserModel = mongoose.model("User", userSchema);
+var UserModel = mongoose3.model("User", userSchema);
 var otpSchema = new Schema(
   {
     email: { type: String, required: true, index: true },
@@ -774,30 +829,10 @@ var otpSchema = new Schema(
   },
   { timestamps: true }
 );
-var OtpModel = mongoose.model("otp", otpSchema);
+var OtpModel = mongoose3.model("otp", otpSchema);
 
 // src/controllers/auth.controller.ts
 var sendOtp = async (req, res, next) => {
-=======
-var UserModel = mongoose2.model("User", userSchema);
-var userModel_default = UserModel;
-var otpSchema = new mongoose2.Schema({
-  email: {
-    type: String,
-    required: true
-  },
-  otp: {
-    type: String,
-    required: true
-  },
-  expiresAt: {
-    type: Date,
-    required: true
-  }
-});
-var otpModel_default = mongoose2.model("OTP", otpSchema);
-var registerUser = async (req, res, next) => {
->>>>>>> 453003f225b70a968af64ea89b0b30435b4a4945
   try {
     const { email } = req.body;
     if (!email) {
@@ -869,7 +904,6 @@ var signInController = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const user = await UserModel.findOne({ email });
-    console.log(user, email, "++++++++++");
     if (!user) {
       res.badRequest({ message: "Invalid credentials email not found" });
       return;
@@ -947,7 +981,6 @@ var checkCookiesEnabled = (req, res) => {
     message: "Cookies enabled"
   });
 };
-<<<<<<< HEAD
 var setCookieTest = (_req, res) => {
   res.cookie("cookie_test", "1", {
     httpOnly: true,
@@ -1002,7 +1035,7 @@ var refreshTokenController = async (req, res, next) => {
 };
 var logoutController = async (req, res, next) => {
   try {
-    const token = req.cookies?.refreshToken;
+    const token = req.cookies?.RefreshToken;
     if (token) {
       await UserModel.updateOne(
         { "refreshTokens.tokenHash": hashToken(token) },
@@ -1052,20 +1085,6 @@ var updateProfileDetails = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-};
-
-// src/middlewares/validate.middleware.ts
-var validateRequest = (schemas) => {
-  return async (req, _res, next) => {
-    try {
-      if (schemas.body) {
-        await schemas.body.parseAsync(req.body);
-      }
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
 };
 var authenticate = (roles = []) => {
   const allowedRoles = roles?.length ? [...roles, "SUPER_ADMIN" /* SUPER_ADMIN */] : null;
@@ -1135,7 +1154,7 @@ var authenticate = (roles = []) => {
 var auth_middleware_default = authenticate;
 
 // src/functions/CreateZodSchema.ts
-var CreateZodSchema = ({
+var CreateZodSchema2 = ({
   body,
   params,
   query
@@ -1146,10 +1165,7 @@ var CreateZodSchema = ({
     query
   };
 };
-var signUpSchema = CreateZodSchema({
-=======
-var signUpSchema = {
->>>>>>> 453003f225b70a968af64ea89b0b30435b4a4945
+var signUpSchema = CreateZodSchema2({
   body: z.object({
     name: z.string({ message: "Name is required" }).min(3, "Name must be at least 3 characters long").nonempty("Name is required"),
     password: z.string({ message: "Password is required" }).min(8, "Password must be at least 8 characters long.").refine((password) => /[A-Z]/.test(password), {
@@ -1168,25 +1184,25 @@ var signUpSchema = {
     phone: z.number({ message: "Phone number must be a number" }).positive("Phone number must be a positive number").min(1e9, "Phone number must be exactly 10 digits").max(9999999999, "Phone number must be exactly 10 digits")
   })
 });
-var signInSchema = CreateZodSchema({
+var signInSchema = CreateZodSchema2({
   body: z.object({
     email: z.string({ message: "Email is required" }).email(),
     password: z.string({ message: "Password is required" })
   })
 });
-var forgotSchema = CreateZodSchema({
+var forgotSchema = CreateZodSchema2({
   body: z.object({
     email: z.string({ message: "Email is required" }).email({ message: "Invalid email format" }),
     password: z.string({ message: "Password is required" }),
     otp: z.number({ message: "OTP Must be a number" }).min(6, "OTP must be 6 digits")
   })
 });
-var otpSchema2 = CreateZodSchema({
+var otpSchema2 = CreateZodSchema2({
   body: z.object({
     email: z.string({ message: "Email is required" }).email()
   })
 });
-CreateZodSchema({
+CreateZodSchema2({
   body: z.object({
     name: z.string({ message: "Name is required" }).min(3, "Name must be at least 3 characters long").optional(),
     phone: z.number({ message: "Phone number must be a number" }).positive("Phone number must be a positive number").min(1e9, "Phone number must be exactly 10 digits").max(9999999999, "Phone number must be exactly 10 digits").optional()
@@ -1195,7 +1211,7 @@ CreateZodSchema({
 
 // src/routes/auth.route.ts
 var authRouter = Router();
-authRouter.post("/sign-in", validateRequest(signInSchema), signInController);
+authRouter.post("/login", validateRequest(signInSchema), signInController);
 authRouter.post("/signUp", validateRequest(signUpSchema), signUpController);
 authRouter.post("/refresh", refreshTokenController);
 authRouter.post("/check-cookies", checkCookiesEnabled);
@@ -1214,25 +1230,20 @@ authRouter.patch(
 );
 var auth_route_default = authRouter;
 var RootRouter = Router();
-<<<<<<< HEAD
 RootRouter.use("/auth", auth_route_default);
-var Root_router_default = RootRouter;
-=======
-RootRouter.use("/auth", User_route_default);
 RootRouter.use("/product", product_routes_default);
 var routes_default = RootRouter;
->>>>>>> 453003f225b70a968af64ea89b0b30435b4a4945
 
 // src/server.ts
 var __filename$1 = fileURLToPath(import.meta.url);
 var __dirname$1 = path.dirname(__filename$1);
-var app = express();
+var app = express2();
 var publicDir = path.join(__dirname$1, "..", "public");
-app.use(express.static(publicDir));
+app.use(express2.static(publicDir));
 var server = createServer(app);
 app.use(response_middleware_default);
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express2.json());
+app.use(express2.urlencoded({ extended: true }));
 app.use(cookieParser());
 applyCores({ app });
 var initialize = () => {
@@ -1247,6 +1258,7 @@ app.set("trust proxy", true);
 app.use(requestContextMiddleware);
 app.use(accessLoggerMiddleware);
 app.use("/api", routes_default);
+app.use("/api", userdetails_routes_default);
 app.use("/api/products", product_routes_default);
 app.use(notFoundMiddleware);
 app.use(errorHandler);

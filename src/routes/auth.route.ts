@@ -26,7 +26,7 @@ import {
 
 const authRouter = Router();
 
-authRouter.post("/sign-in", validateRequest(signInSchema), signInController);
+authRouter.post("/login", validateRequest(signInSchema), signInController);
 
 // authRouter.post("/google-sign-in", GooglesignInController )
 authRouter.post("/signUp", validateRequest(signUpSchema), signUpController);
