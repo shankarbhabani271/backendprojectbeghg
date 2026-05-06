@@ -21,6 +21,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import productMenuRoutes from "./routes/productmenu.routes.js";
 export const app = express();
+//
+import authRoutes from "./routes/authRoutes.js";
+import employeeRoutes from "./routes/employeeRoutes.js";
 
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
@@ -57,7 +60,8 @@ app.use("/api/products", productRoutes);
 app.use("/api/material",materialRoutes)
 app.use("/api/vendor",vendorRoutes)
 app.use("/api/productmenu", productMenuRoutes);
-
+app.use("/api/auth", authRoutes);
+app.use("/api/employee", employeeRoutes);
 app.use(notFoundMiddleware);
 
 app.use(errorHandler);

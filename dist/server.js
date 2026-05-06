@@ -1,5 +1,5 @@
 import cookieParser from 'cookie-parser';
-import express4, { Router } from 'express';
+import express6, { Router } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import morgan from 'morgan';
@@ -13,9 +13,8 @@ import dotenv from 'dotenv';
 import os from 'os';
 import { v4 } from 'uuid';
 import cors from 'cors';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
 
 // src/server.ts
 var LOG_DIR = path.resolve(process.cwd(), "logs");
@@ -144,7 +143,7 @@ var getUserDetails = async (req, res) => {
 };
 
 // src/routes/userdetails.routes.ts
-var router = express4.Router();
+var router = express6.Router();
 router.post("/userdetails", createUserDetails);
 router.get("/userdetails", getUserDetails);
 var userdetails_routes_default = router;
@@ -440,7 +439,7 @@ var getVendor = async (req, res) => {
 };
 
 // src/routes/vendor.routes.ts
-var router2 = express4.Router();
+var router2 = express6.Router();
 router2.post("/create", createVendor);
 router2.get("/get", getVendor);
 var vendor_routes_default = router2;
@@ -584,11 +583,6 @@ var ValidationError = class extends AppError {
         // all messages
       }
     };
-  }
-};
-var JwtExpiredError = class extends AppError {
-  constructor(message) {
-    super("JWT_EXPIRED_ERROR", message);
   }
 };
 var notFoundMiddleware = (req, res) => {
@@ -784,493 +778,66 @@ var connectDB = async () => {
   }
 };
 var db_config_default = connectDB;
-
-// src/constants/user.constant.ts
-var USER_STATUS = /* @__PURE__ */ ((USER_STATUS2) => {
-  USER_STATUS2["ACTIVE"] = "ACTIVE";
-  USER_STATUS2["SUSPENDED"] = "SUSPENDED";
-  return USER_STATUS2;
-})(USER_STATUS || {});
-var USER_ROLE = /* @__PURE__ */ ((USER_ROLE2) => {
-  USER_ROLE2["SUPER_ADMIN"] = "SUPER_ADMIN";
-  USER_ROLE2["USER"] = "USER";
-  return USER_ROLE2;
-})(USER_ROLE || {});
-var ACCESS_TOKEN_TTL = "1d";
-var REFRESH_TOKEN_TTL = "15d";
-var generateAccessToken = (userId) => {
-  return jwt.sign({ sub: userId }, env_config_default.JWT_SECRET, {
-    expiresIn: ACCESS_TOKEN_TTL
-  });
-};
-var generateRefreshToken = (userId) => {
-  return jwt.sign({ sub: userId }, env_config_default.JWT_REFRESH_SECRET, {
-    expiresIn: REFRESH_TOKEN_TTL
-  });
-};
-var hashToken = (token) => {
-  return crypto.createHash("sha256").update(token).digest("hex");
-};
-var verifyToken = ({
-  token,
-  type
-}) => {
-  const secret = env_config_default.JWT_SECRET ;
-  if (token) {
-    return jwt.verify(token, secret);
-  }
-};
-var refreshTokenSchema = new Schema(
-  {
-    tokenHash: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now },
-    expiresAt: { type: Date, required: true }
+var userSchema = new mongoose2.Schema({
+  email: {
+    type: String,
+    required: true,
+    unique: true
   },
-  { _id: false }
-);
-var userSchema = new Schema(
-  {
-    name: String,
-    phone: { type: String },
-    email: {
-      type: String,
-      required: true,
-      trim: true,
-      lowercase: true,
-      index: { unique: true }
-    },
-    password: { type: String, required: true },
-    role: {
-      type: String,
-      enum: Object.values(USER_ROLE),
-      default: "USER" /* USER */
-    },
-    userStatus: {
-      type: String,
-      enum: Object.values(USER_STATUS),
-      default: "ACTIVE" /* ACTIVE */
-    },
-    refreshTokens: {
-      type: [refreshTokenSchema],
-      default: []
-    },
-    lastLogin: {
-      type: Date,
-      default: Date.now
-    }
+  password: {
+    type: String,
+    required: true
   },
-  { timestamps: true }
-);
-var UserModel = mongoose2.model("User", userSchema);
-var otpSchema = new Schema(
-  {
-    email: { type: String, required: true, index: true },
-    organization: { type: String },
-    otpHash: { type: String, required: true },
-    expiresAt: { type: Date, required: true },
-    attempts: { type: Number, default: 0 }
-  },
-  { timestamps: true }
-);
-var OtpModel = mongoose2.model("otp", otpSchema);
-
-// src/controllers/auth.controller.ts
-var sendOtp = async (req, res, next) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      res.status(400).json({ message: "Email is required" });
-      return;
-    }
-    const existingOtp = await OtpModel.findOne({ email });
-    if (existingOtp && existingOtp.expiresAt > /* @__PURE__ */ new Date()) {
-      res.status(429).json({ message: "OTP already sent. Try again later." });
-      return;
-    }
-    const otp = Math.floor(1e5 + Math.random() * 9e5).toString();
-    const otpHash = await bcrypt.hash(otp, 10);
-    await OtpModel.findOneAndUpdate(
-      { email, organization: "" },
-      {
-        otpHash,
-        attempts: 0,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1e3)
-      },
-      { upsert: true }
-    );
-    console.log("OTP:", otp);
-    res.success({ message: "If the email exists, OTP has been sent" });
-  } catch (error) {
-    next(error);
+  role: {
+    type: String,
+    enum: ["admin", "employee"],
+    default: "employee"
   }
-};
-var forgotPasswordController = async (req, res, next) => {
-  try {
-    const { email, otp, password } = req.body;
-    if (!email || !otp || !password) {
-      res.status(400).json({ message: "Email, OTP and password are required" });
-      return;
-    }
-    const user = await UserModel.findOne({ email });
-    if (!user) {
-      res.status(400).json({ message: "Invalid OTP or expired" });
-      return;
-    }
-    const otpRecord = await OtpModel.findOne({ email });
-    if (!otpRecord || otpRecord.expiresAt < /* @__PURE__ */ new Date()) {
-      await OtpModel.deleteOne({ email });
-      res.status(400).json({ message: "OTP expired or invalid" });
-      return;
-    }
-    const isValidOtp = await bcrypt.compare(otp, otpRecord.otpHash);
-    if (!isValidOtp) {
-      otpRecord.attempts += 1;
-      await otpRecord.save();
-      if (otpRecord.attempts >= 5) {
-        await OtpModel.deleteOne({ email });
-        res.status(400).json({ message: "Too many attempts. OTP expired." });
-        return;
-      }
-      res.status(400).json({ message: "Invalid OTP" });
-      return;
-    }
-    await OtpModel.deleteOne({ email });
-    user.password = await bcrypt.hash(password, 10);
-    user.refreshTokens.splice(0, user.refreshTokens.length);
-    await user.save();
-    res.success({ message: "Password reset successfully" });
-  } catch (error) {
-    next(error);
-  }
-};
-var signInController = async (req, res, next) => {
+});
+var User_default = mongoose2.model("User", userSchema);
+var loginController = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await UserModel.findOne({ email });
+    const user = await User_default.findOne({ email });
     if (!user) {
-      res.badRequest({ message: "Invalid credentials email not found" });
-      return;
+      return res.status(400).json({
+        message: "User not found"
+      });
     }
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      res.badRequest({ message: "Invalid credentials pass issue" });
-      return;
+    const isMatch = await bcrypt.compare(
+      password,
+      user.password
+    );
+    if (!isMatch) {
+      return res.status(400).json({
+        message: "Invalid password"
+      });
     }
-    if (user.userStatus === "SUSPENDED" /* SUSPENDED */) {
-      res.badRequest({ message: "You are suspended, contact admin" });
-      return;
-    }
-    const accessToken = generateAccessToken(user._id.toString());
-    const refreshToken = generateRefreshToken(user._id.toString());
-    user.refreshTokens.push({
-      tokenHash: hashToken(refreshToken),
-      createdAt: /* @__PURE__ */ new Date(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1e3)
-    });
-    user.lastLogin = /* @__PURE__ */ new Date();
-    await user.save();
-    const isProd = env_config_default.IS_PROD;
-    const cookieName = "RefreshToken";
-    res.cookie(cookieName, refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1e3
-    });
-    res.success({
-      data: { accessToken },
-      message: "User logged in successfully"
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-var signUpController = async (req, res, next) => {
-  try {
-    const { name, phone, email, password } = req.body;
-    const existingUser = await UserModel.findOne({ email }).lean();
-    if (existingUser) {
-      res.status(400).json({ message: "User already exists" });
-      return;
-    }
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await UserModel.create({
-      name,
-      phone,
-      email,
-      password: hashedPassword
-    });
-    const { password: _, ...userWithoutPassword } = newUser.toObject();
-    res.created({
-      data: userWithoutPassword,
-      message: "User Created Successfully"
-    });
-    return;
-  } catch (error) {
-    next(error);
-  }
-};
-var checkCookiesEnabled = (req, res) => {
-  const hasCookie = Boolean(req.cookies?.cookie_test);
-  if (!hasCookie) {
-    return res.status(401).json({
-      success: false,
-      code: "COOKIES_DISABLED",
-      message: "Cookies are required for authentication"
-    });
-  }
-  return res.success({
-    message: "Cookies enabled"
-  });
-};
-var setCookieTest = (_req, res) => {
-  res.cookie("cookie_test", "1", {
-    httpOnly: true,
-    secure: env_config_default.IS_PROD,
-    sameSite: env_config_default.IS_PROD ? "lax" : "none",
-    path: "/",
-    maxAge: 7 * 24 * 60 * 60 * 1e3
-  });
-  return res.success({
-    message: "Test cookie set successfully"
-  });
-};
-var refreshTokenController = async (req, res, next) => {
-  try {
-    const cookieName = "RefreshToken";
-    const refreshToken = req.cookies?.[cookieName];
-    if (!refreshToken) {
-      res.unauthorized({ message: "Unauthenticated" });
-      return;
-    }
-    let payload;
-    try {
-      payload = jwt.verify(refreshToken, env_config_default.JWT_REFRESH_SECRET);
-    } catch {
-      res.unauthorized({ message: "Invalid refresh token" });
-      return;
-    }
-    const tokenHash = hashToken(refreshToken);
-    const now = /* @__PURE__ */ new Date();
-    const user = await UserModel.findOne({
-      _id: payload.sub,
-      refreshTokens: {
-        $elemMatch: {
-          tokenHash,
-          expiresAt: { $gt: now }
-        }
-      }
-    });
-    if (!user) {
-      res.unauthorized({ message: "Invalid refresh token" });
-      return;
-    }
-    res.success({
-      message: "Token refreshed",
-      data: {
-        accessToken: generateAccessToken(user._id.toString())
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-var logoutController = async (req, res, next) => {
-  try {
-    const token = req.cookies?.RefreshToken;
-    if (token) {
-      await UserModel.updateOne(
-        { "refreshTokens.tokenHash": hashToken(token) },
-        { $pull: { refreshTokens: { tokenHash: hashToken(token) } } }
-      );
-    }
-    const cookieName = "RefreshToken";
-    res.clearCookie(cookieName, {
-      httpOnly: true,
-      secure: env_config_default.IS_PROD,
-      sameSite: "lax",
-      path: "/"
-    });
-    res.success({ message: "Logged out successfully" });
-  } catch (error) {
-    next(error);
-  }
-};
-var updateProfileDetails = async (req, res, next) => {
-  try {
-    if (!req.user || !req.user._id) {
-      res.unauthorized({ message: "Unauthorized" });
-      return;
-    }
-    const { name, phone } = req.body;
-    const user = await UserModel.findByIdAndUpdate(
-      req.user._id,
+    const token = jwt.sign(
       {
-        ...name && { name },
-        ...phone && { phone }
-        // phone is string now
+        id: user._id,
+        role: user.role
       },
+      process.env.JWT_SECRET,
       {
-        new: true,
-        runValidators: true,
-        select: "-password -refreshTokens"
+        expiresIn: "1d"
       }
     );
-    if (!user) {
-      res.status(404).json({ message: "User not found" });
-      return;
-    }
-    res.success({
-      data: user,
-      message: "Profile updated successfully"
+    res.status(200).json({
+      message: "Login Success",
+      token,
+      role: user.role
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({
+      message: error.message
+    });
   }
 };
-var authenticate = (roles = []) => {
-  const allowedRoles = roles?.length ? [...roles, "SUPER_ADMIN" /* SUPER_ADMIN */] : null;
-  return async (req, res, next) => {
-    try {
-      const token = req.headers.authorization?.split(" ")[1];
-      const cookieName = "RefreshToken";
-      const refreshToken = req.cookies?.[cookieName];
-      if (!token && refreshToken) {
-        res.unauthorized({
-          message: "Session expired. Please reload."
-        });
-        return;
-      }
-      if (!token) {
-        res.unauthorized({
-          message: "Token not found"
-        });
-        return;
-      }
-      try {
-        const decoded = verifyToken({
-          token,
-          type: "ACCESS" /* ACCESS */
-        });
-        const user = await UserModel.findById(decoded?.sub).lean();
-        if (!user) {
-          if (refreshToken) {
-            await UserModel.updateOne(
-              { "refreshTokens.tokenHash": hashToken(refreshToken) },
-              {
-                $pull: {
-                  refreshTokens: { tokenHash: hashToken(refreshToken) }
-                }
-              }
-            );
-            res.clearCookie("refreshToken", {
-              httpOnly: true,
-              secure: env_config_default.IS_PROD,
-              sameSite: env_config_default.IS_PROD ? "lax" : "none",
-              path: "/"
-            });
-          }
-          return res.badRequest({
-            message: "User not found",
-            statusCode: 400
-          });
-        }
-        if (allowedRoles && !allowedRoles.includes(user.role)) {
-          return res.forbidden({
-            message: "You do not have permission to access this resource"
-          });
-        }
-        req.user = user;
-      } catch (error) {
-        if (error instanceof jwt.TokenExpiredError) {
-          throw new JwtExpiredError("Session expired. Please reload.");
-        }
-        return next(error);
-      }
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
-};
-var auth_middleware_default = authenticate;
-
-// src/functions/CreateZodSchema.ts
-var CreateZodSchema2 = ({
-  body,
-  params,
-  query
-}) => {
-  return {
-    body,
-    params,
-    query
-  };
-};
-var signUpSchema = CreateZodSchema2({
-  body: z.object({
-    name: z.string({ message: "Name is required" }).min(3, "Name must be at least 3 characters long").nonempty("Name is required"),
-    password: z.string({ message: "Password is required" }).min(8, "Password must be at least 8 characters long.").refine((password) => /[A-Z]/.test(password), {
-      message: "Password must contain at least one uppercase letter."
-    }).refine((password) => /[a-z]/.test(password), {
-      message: "Password must contain at least one lowercase letter."
-    }).refine((password) => /\d/.test(password), {
-      message: "Password must contain at least one number."
-    }),
-    // role: z
-    //   .enum(USER_ROLE, {
-    //     message: `role must be ${Object.keys(USER_ROLE).join(", ")}`,
-    //   })
-    //   ?.optional(),
-    email: z.string({ message: "Email is required" }).email({ message: "Invalid email format" }),
-    phone: z.number({ message: "Phone number must be a number" }).positive("Phone number must be a positive number").min(1e9, "Phone number must be exactly 10 digits").max(9999999999, "Phone number must be exactly 10 digits")
-  })
-});
-var signInSchema = CreateZodSchema2({
-  body: z.object({
-    email: z.string({ message: "Email is required" }).email(),
-    password: z.string({ message: "Password is required" })
-  })
-});
-var forgotSchema = CreateZodSchema2({
-  body: z.object({
-    email: z.string({ message: "Email is required" }).email({ message: "Invalid email format" }),
-    password: z.string({ message: "Password is required" }),
-    otp: z.number({ message: "OTP Must be a number" }).min(6, "OTP must be 6 digits")
-  })
-});
-var otpSchema2 = CreateZodSchema2({
-  body: z.object({
-    email: z.string({ message: "Email is required" }).email()
-  })
-});
-CreateZodSchema2({
-  body: z.object({
-    name: z.string({ message: "Name is required" }).min(3, "Name must be at least 3 characters long").optional(),
-    phone: z.number({ message: "Phone number must be a number" }).positive("Phone number must be a positive number").min(1e9, "Phone number must be exactly 10 digits").max(9999999999, "Phone number must be exactly 10 digits").optional()
-  })
-});
 
 // src/routes/auth.route.ts
 var authRouter = Router();
-authRouter.post("/login", validateRequest(signInSchema), signInController);
-authRouter.post("/signUp", validateRequest(signUpSchema), signUpController);
-authRouter.post("/refresh", refreshTokenController);
-authRouter.post("/check-cookies", checkCookiesEnabled);
-authRouter.post("/set-check-cookies", setCookieTest);
-authRouter.post("/logout", logoutController);
-authRouter.post("/generate-otp", validateRequest(otpSchema2), sendOtp);
-authRouter.patch(
-  "/forgot",
-  validateRequest(forgotSchema),
-  forgotPasswordController
-);
-authRouter.patch(
-  "/update-profile",
-  auth_middleware_default(),
-  updateProfileDetails
-);
+authRouter.post("/login", loginController);
 var auth_route_default = authRouter;
 var RootRouter = Router();
 RootRouter.use("/auth", auth_route_default);
@@ -1453,7 +1020,7 @@ var rejectMaterial = async (req, res) => {
 };
 
 // src/routes/material.routes.ts
-var router3 = express4.Router();
+var router3 = express6.Router();
 router3.post("/", createMaterial);
 router3.get("/", getMaterials);
 router3.put("/:id/approve", approveMaterial);
@@ -1538,17 +1105,119 @@ router4.get("/:id", getSingleProductMenu);
 router4.put("/:id", updateProductMenu);
 router4.delete("/:id", deleteProductMenu);
 var productmenu_routes_default = router4;
+var router5 = express6.Router();
+router5.post("/login", loginController);
+var authRoutes_default = router5;
+var employeeSchema = new mongoose2.Schema({
+  name: {
+    type: String,
+    required: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  mobile: {
+    type: String,
+    required: true
+  },
+  department: {
+    type: String,
+    required: true
+  },
+  role: {
+    type: String,
+    required: true
+  },
+  employeeId: {
+    type: String,
+    default: () => "EMP" + Date.now()
+  }
+});
+var employee_model_default = mongoose2.model("Employee", employeeSchema);
+
+// src/controllers/employeeController.ts
+var createEmployee = async (req, res) => {
+  try {
+    const {
+      name,
+      email,
+      mobile,
+      department,
+      role,
+      password
+    } = req.body;
+    const existingEmployee = await employee_model_default.findOne({ email });
+    if (existingEmployee) {
+      return res.status(400).json({
+        message: "Employee already exists"
+      });
+    }
+    const newEmployee = new employee_model_default({
+      name,
+      email,
+      mobile,
+      department,
+      role,
+      password
+    });
+    await newEmployee.save();
+    res.status(201).json({
+      message: "Employee created successfully",
+      employee: newEmployee
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};
+var authMiddleware = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({
+        message: "Token missing"
+      });
+    }
+    const token = authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;
+    console.log("JWT Secret:", process.env.JWT_SECRET);
+    console.log("Received Token:", token);
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+    req.user = decoded;
+    next();
+  } catch (error) {
+    console.log(error.message);
+    return res.status(401).json({
+      message: "Invalid token"
+    });
+  }
+};
+var authMiddleware_default = authMiddleware;
+
+// src/routes/employeeRoutes.ts
+var router6 = express6.Router();
+router6.post(
+  "/details",
+  authMiddleware_default,
+  createEmployee
+);
+var employeeRoutes_default = router6;
 
 // src/server.ts
 var __filename$1 = fileURLToPath(import.meta.url);
 var __dirname$1 = path.dirname(__filename$1);
-var app = express4();
+var app = express6();
 var publicDir = path.join(__dirname$1, "..", "public");
-app.use(express4.static(publicDir));
+app.use(express6.static(publicDir));
 var server = createServer(app);
 app.use(response_middleware_default);
-app.use(express4.json());
-app.use(express4.urlencoded({ extended: true }));
+app.use(express6.json());
+app.use(express6.urlencoded({ extended: true }));
 app.use(cookieParser());
 applyCores({ app });
 var initialize = () => {
@@ -1568,6 +1237,8 @@ app.use("/api/products", product_routes_default);
 app.use("/api/material", material_routes_default);
 app.use("/api/vendor", vendor_routes_default);
 app.use("/api/productmenu", productmenu_routes_default);
+app.use("/api/auth", authRoutes_default);
+app.use("/api/employee", employeeRoutes_default);
 app.use(notFoundMiddleware);
 app.use(errorHandler);
 
