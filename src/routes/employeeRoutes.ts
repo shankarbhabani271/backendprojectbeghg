@@ -4,10 +4,9 @@ import authMiddleware from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-// Save employee details
+// Register employee
 router.post(
-  "/details",
-  authMiddleware,
+  "/register",
   createEmployee
 );
 

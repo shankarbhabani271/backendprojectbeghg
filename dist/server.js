@@ -736,7 +736,8 @@ var applyCores = ({ app: app2 }) => {
     "http://localhost:4173",
     "http://localhost:4550",
     "http://localhost:5173",
-    "http://localhost:5174"
+    "http://localhost:5174",
+    "https://bagforinveo.onrender.com"
   ];
   app2.use(
     cors({
@@ -1108,102 +1109,91 @@ var productmenu_routes_default = router4;
 var router5 = express6.Router();
 router5.post("/login", loginController);
 var authRoutes_default = router5;
-var employeeSchema = new mongoose2.Schema({
-  name: {
-    type: String,
-    required: true
+var employeeSchema = new mongoose2.Schema(
+  {
+    employeeId: {
+      type: String,
+      unique: true,
+      required: true
+    },
+    name: {
+      type: String,
+      required: true
+    },
+    mobile: {
+      type: String,
+      required: true
+    },
+    blood: {
+      type: String,
+      required: true
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true
+    },
+    department: {
+      type: String,
+      required: true
+    },
+    role: {
+      type: String,
+      required: true
+    }
   },
-  email: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  mobile: {
-    type: String,
-    required: true
-  },
-  department: {
-    type: String,
-    required: true
-  },
-  role: {
-    type: String,
-    required: true
-  },
-  employeeId: {
-    type: String,
-    default: () => "EMP" + Date.now()
+  {
+    timestamps: true
   }
-});
+);
 var employee_model_default = mongoose2.model("Employee", employeeSchema);
 
 // src/controllers/employeeController.ts
 var createEmployee = async (req, res) => {
   try {
     const {
+      employeeId,
       name,
-      email,
       mobile,
+      blood,
+      email,
       department,
-      role,
-      password
+      role
     } = req.body;
     const existingEmployee = await employee_model_default.findOne({ email });
     if (existingEmployee) {
       return res.status(400).json({
+        success: false,
         message: "Employee already exists"
       });
     }
     const newEmployee = new employee_model_default({
+      employeeId,
       name,
-      email,
       mobile,
+      blood,
+      email,
       department,
-      role,
-      password
+      role
     });
     await newEmployee.save();
     res.status(201).json({
+      success: true,
       message: "Employee created successfully",
       employee: newEmployee
     });
   } catch (error) {
     res.status(500).json({
+      success: false,
       message: error.message
     });
   }
 };
-var authMiddleware = (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({
-        message: "Token missing"
-      });
-    }
-    const token = authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;
-    console.log("JWT Secret:", process.env.JWT_SECRET);
-    console.log("Received Token:", token);
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
-    req.user = decoded;
-    next();
-  } catch (error) {
-    console.log(error.message);
-    return res.status(401).json({
-      message: "Invalid token"
-    });
-  }
-};
-var authMiddleware_default = authMiddleware;
 
 // src/routes/employeeRoutes.ts
 var router6 = express6.Router();
 router6.post(
-  "/details",
-  authMiddleware_default,
+  "/register",
   createEmployee
 );
 var employeeRoutes_default = router6;
@@ -1238,7 +1228,7 @@ app.use("/api/material", material_routes_default);
 app.use("/api/vendor", vendor_routes_default);
 app.use("/api/productmenu", productmenu_routes_default);
 app.use("/api/auth", authRoutes_default);
-app.use("/api/employee", employeeRoutes_default);
+app.use("/api/employees", employeeRoutes_default);
 app.use(notFoundMiddleware);
 app.use(errorHandler);
 

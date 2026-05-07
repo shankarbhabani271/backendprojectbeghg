@@ -61,7 +61,10 @@ app.use("/api/material",materialRoutes)
 app.use("/api/vendor",vendorRoutes)
 app.use("/api/productmenu", productMenuRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/employee", employeeRoutes);
+
+
+
+app.use("/api/employees", employeeRoutes);
 app.use(notFoundMiddleware);
 
 app.use(errorHandler);

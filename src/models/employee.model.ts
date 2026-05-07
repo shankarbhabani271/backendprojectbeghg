@@ -1,36 +1,47 @@
 import mongoose from "mongoose";
 
-const employeeSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true
-  },
+const employeeSchema = new mongoose.Schema(
+  {
+    employeeId: {
+      type: String,
+      unique: true,
+      required: true
+    },
 
-  email: {
-    type: String,
-    required: true,
-    unique: true
-  },
+    name: {
+      type: String,
+      required: true,
+    },
 
-  mobile: {
-    type: String,
-    required: true
-  },
+    mobile: {
+      type: String,
+      required: true,
+    },
 
-  department: {
-    type: String,
-    required: true
-  },
+    blood: {
+      type: String,
+      required: true,
+    },
 
-  role: {
-    type: String,
-    required: true
-  },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
 
-  employeeId: {
-    type: String,
-    default: () => "EMP" + Date.now()
+    department: {
+      type: String,
+      required: true,
+    },
+
+    role: {
+      type: String,
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
   }
-});
+);
 
 export default mongoose.model("Employee", employeeSchema);

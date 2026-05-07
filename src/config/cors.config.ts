@@ -7,6 +7,7 @@ export const applyCores = ({ app }: { app: AppType }) => {
     "http://localhost:4550",
     "http://localhost:5173",
     "http://localhost:5174",
+    "https://bagforinveo.onrender.com"
   ];
 
   app.use(
