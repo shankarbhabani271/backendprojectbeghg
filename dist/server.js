@@ -15,6 +15,7 @@ import { v4 } from 'uuid';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import nodemailer from 'nodemailer';
 
 // src/server.ts
 var LOG_DIR = path.resolve(process.cwd(), "logs");
@@ -1140,6 +1141,11 @@ var employeeSchema = new mongoose2.Schema(
     role: {
       type: String,
       required: true
+    },
+    otp: String,
+    isVerified: {
+      type: Boolean,
+      default: false
     }
   },
   {
@@ -1147,6 +1153,30 @@ var employeeSchema = new mongoose2.Schema(
   }
 );
 var employee_model_default = mongoose2.model("Employee", employeeSchema);
+dotenv.config();
+var sendOtpEmail = async (email, otp) => {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.NODE_MAILER_EMAIL,
+        pass: process.env.NODE_MAILER_PASS
+      }
+    });
+    const mailOptions = {
+      from: process.env.NODE_MAILER_EMAIL,
+      to: email,
+      subject: "Employee Verification OTP",
+      text: `Your OTP is: ${otp}`
+    };
+    const info = await transporter.sendMail(mailOptions);
+    console.log("OTP Email Sent Successfully");
+    console.log(info.response);
+  } catch (error) {
+    console.log("Email Error:", error);
+  }
+};
+var sendOtp_default = sendOtpEmail;
 
 // src/controllers/employeeController.ts
 var createEmployee = async (req, res) => {
@@ -1167,6 +1197,9 @@ var createEmployee = async (req, res) => {
         message: "Employee already exists"
       });
     }
+    const otp = String(
+      Math.floor(1e5 + Math.random() * 9e5)
+    );
     const newEmployee = new employee_model_default({
       employeeId,
       name,
@@ -1174,13 +1207,50 @@ var createEmployee = async (req, res) => {
       blood,
       email,
       department,
-      role
+      role,
+      otp,
+      isVerified: false
     });
     await newEmployee.save();
+    await sendOtp_default(email, otp);
     res.status(201).json({
       success: true,
       message: "Employee created successfully",
       employee: newEmployee
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// src/controllers/verifyOtp.controller.ts
+var verifyEmployeeOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    console.log("User entered OTP:", otp);
+    const employee = await employee_model_default.findOne({ email });
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found"
+      });
+    }
+    console.log("Database OTP:", employee.otp);
+    if (employee.otp != otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP"
+      });
+    }
+    employee.isVerified = true;
+    employee.otp = null;
+    await employee.save();
+    res.status(200).json({
+      success: true,
+      message: "OTP verified successfully"
     });
   } catch (error) {
     res.status(500).json({
@@ -1196,6 +1266,7 @@ router6.post(
   "/register",
   createEmployee
 );
+router6.post("/verify-otp", verifyEmployeeOtp);
 var employeeRoutes_default = router6;
 
 // src/server.ts

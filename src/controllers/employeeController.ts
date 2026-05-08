@@ -1,5 +1,5 @@
 import Employee from "../models/employee.model.js";
-
+import sendOtpEmail from "../utils/sendOtp.js";
 export const createEmployee = async (req, res) => {
   try {
     const {
@@ -12,6 +12,8 @@ export const createEmployee = async (req, res) => {
       role
     } = req.body;
 
+    
+
     // check existing employee
     const existingEmployee = await Employee.findOne({ email });
 
@@ -22,19 +24,25 @@ export const createEmployee = async (req, res) => {
       });
     }
 
+    
+const otp = String(
+  Math.floor(100000 + Math.random() * 900000)
+);
     // create employee
-    const newEmployee = new Employee({
-      employeeId,
-      name,
-      mobile,
-      blood,
-      email,
-      department,
-      role
-    });
+   const newEmployee = new Employee({
+  employeeId,
+  name,
+  mobile,
+  blood,
+  email,
+  department,
+  role,
+  otp,
+  isVerified: false
+});
 
     await newEmployee.save();
-
+  await sendOtpEmail(email, otp);
     res.status(201).json({
       success: true,
       message: "Employee created successfully",

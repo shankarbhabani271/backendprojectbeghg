@@ -38,6 +38,11 @@ const employeeSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+     otp: String,
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
   },
   {
     timestamps: true,
