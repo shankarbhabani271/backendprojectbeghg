@@ -9,7 +9,8 @@ const userSchema = new mongoose.Schema({
 
   password: {
     type: String,
-    required: true
+    required: true,
+    default:"admin@123"
   },
 
   role: {

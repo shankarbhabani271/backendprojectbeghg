@@ -788,7 +788,8 @@ var userSchema = new mongoose2.Schema({
   },
   password: {
     type: String,
-    required: true
+    required: true,
+    default: "admin@123"
   },
   role: {
     type: String,
@@ -1209,6 +1210,8 @@ var createEmployee = async (req, res) => {
       department,
       role,
       otp,
+      password: "admin@123",
+      //same password
       isVerified: false
     });
     await newEmployee.save();

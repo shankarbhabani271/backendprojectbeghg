@@ -38,6 +38,7 @@ const otp = String(
   department,
   role,
   otp,
+  password:"admin@123",  //same password
   isVerified: false
 });
 
