@@ -1,5 +1,5 @@
 import cookieParser from 'cookie-parser';
-import express6, { Router } from 'express';
+import express7, { Router } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import morgan from 'morgan';
@@ -16,6 +16,7 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 
 // src/server.ts
 var LOG_DIR = path.resolve(process.cwd(), "logs");
@@ -144,7 +145,7 @@ var getUserDetails = async (req, res) => {
 };
 
 // src/routes/userdetails.routes.ts
-var router = express6.Router();
+var router = express7.Router();
 router.post("/userdetails", createUserDetails);
 router.get("/userdetails", getUserDetails);
 var userdetails_routes_default = router;
@@ -440,7 +441,7 @@ var getVendor = async (req, res) => {
 };
 
 // src/routes/vendor.routes.ts
-var router2 = express6.Router();
+var router2 = express7.Router();
 router2.post("/create", createVendor);
 router2.get("/get", getVendor);
 var vendor_routes_default = router2;
@@ -1023,7 +1024,7 @@ var rejectMaterial = async (req, res) => {
 };
 
 // src/routes/material.routes.ts
-var router3 = express6.Router();
+var router3 = express7.Router();
 router3.post("/", createMaterial);
 router3.get("/", getMaterials);
 router3.put("/:id/approve", approveMaterial);
@@ -1108,7 +1109,7 @@ router4.get("/:id", getSingleProductMenu);
 router4.put("/:id", updateProductMenu);
 router4.delete("/:id", deleteProductMenu);
 var productmenu_routes_default = router4;
-var router5 = express6.Router();
+var router5 = express7.Router();
 router5.post("/login", loginController);
 var authRoutes_default = router5;
 var employeeSchema = new mongoose2.Schema(
@@ -1229,59 +1230,83 @@ var createEmployee = async (req, res) => {
   }
 };
 
-// src/controllers/verifyOtp.controller.ts
-var verifyEmployeeOtp = async (req, res) => {
+// src/routes/employeeRoutes.ts
+var router6 = express7.Router();
+router6.post(
+  "/register",
+  createEmployee
+);
+var employeeRoutes_default = router6;
+var inviteSchema = new mongoose2.Schema({
+  email: String,
+  token: String,
+  expiresAt: Date
+});
+var invite_model_default = mongoose2.model("Invite", inviteSchema);
+var sendInviteEmail = async (email, link) => {
   try {
-    const { email, otp } = req.body;
-    console.log("User entered OTP:", otp);
-    const employee = await employee_model_default.findOne({ email });
-    if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: "Employee not found"
-      });
-    }
-    console.log("Database OTP:", employee.otp);
-    if (employee.otp != otp) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP"
-      });
-    }
-    employee.isVerified = true;
-    employee.otp = null;
-    await employee.save();
-    res.status(200).json({
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.NODE_MAILER_EMAIL,
+        pass: process.env.NODE_MAILER_PASS
+      }
+    });
+    await transporter.sendMail({
+      from: process.env.NODE_MAILER_EMAIL,
+      to: email,
+      subject: "Employee Registration Link",
+      html: `
+        <h2>Complete Registration</h2>
+        <p>Click below link:</p>
+        <a href="${link}">${link}</a>
+      `
+    });
+    console.log("Email sent successfully");
+  } catch (error) {
+    console.log(error);
+  }
+};
+var sendInviteEmail_default = sendInviteEmail;
+
+// src/controllers/inviteController.ts
+var sendInviteLink = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const token = crypto.randomBytes(32).toString("hex");
+    const link = `http://192.168.1.10:5173/register/${token}`;
+    await invite_model_default.create({
+      email,
+      token,
+      expiresAt: Date.now() + 36e5
+    });
+    await sendInviteEmail_default(email, link);
+    res.json({
       success: true,
-      message: "OTP verified successfully"
+      message: "Registration link sent successfully"
     });
   } catch (error) {
     res.status(500).json({
-      success: false,
       message: error.message
     });
   }
 };
 
-// src/routes/employeeRoutes.ts
-var router6 = express6.Router();
-router6.post(
-  "/register",
-  createEmployee
-);
-router6.post("/verify-otp", verifyEmployeeOtp);
-var employeeRoutes_default = router6;
+// src/routes/inviteRoutes.ts
+var router7 = express7.Router();
+router7.post("/send-link", sendInviteLink);
+var inviteRoutes_default = router7;
 
 // src/server.ts
 var __filename$1 = fileURLToPath(import.meta.url);
 var __dirname$1 = path.dirname(__filename$1);
-var app = express6();
+var app = express7();
 var publicDir = path.join(__dirname$1, "..", "public");
-app.use(express6.static(publicDir));
+app.use(express7.static(publicDir));
 var server = createServer(app);
 app.use(response_middleware_default);
-app.use(express6.json());
-app.use(express6.urlencoded({ extended: true }));
+app.use(express7.json());
+app.use(express7.urlencoded({ extended: true }));
 app.use(cookieParser());
 applyCores({ app });
 var initialize = () => {
@@ -1302,6 +1327,7 @@ app.use("/api/material", material_routes_default);
 app.use("/api/vendor", vendor_routes_default);
 app.use("/api/productmenu", productmenu_routes_default);
 app.use("/api/auth", authRoutes_default);
+app.use("/api/invite", inviteRoutes_default);
 app.use("/api/employees", employeeRoutes_default);
 app.use(notFoundMiddleware);
 app.use(errorHandler);

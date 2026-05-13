@@ -24,6 +24,8 @@ export const app = express();
 //
 import authRoutes from "./routes/authRoutes.js";
 import employeeRoutes from "./routes/employeeRoutes.js";
+import inviteRoutes from "./routes/inviteRoutes.js";
+
 
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
@@ -61,7 +63,7 @@ app.use("/api/material",materialRoutes)
 app.use("/api/vendor",vendorRoutes)
 app.use("/api/productmenu", productMenuRoutes);
 app.use("/api/auth", authRoutes);
-
+app.use("/api/invite", inviteRoutes);
 
 
 app.use("/api/employees", employeeRoutes);
